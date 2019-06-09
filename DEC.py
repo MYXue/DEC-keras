@@ -33,6 +33,7 @@ def autoencoder(dims, act='relu', init='glorot_uniform'):
     return:
         (ae_model, encoder_model), Model of autoencoder and model of encoder
     """
+    # from main(): dims=[x.shape[-1], 500, 500, 2000, 10]
     n_stacks = len(dims) - 1
     # input
     x = Input(shape=(dims[0],), name='input')
@@ -47,7 +48,7 @@ def autoencoder(dims, act='relu', init='glorot_uniform'):
 
     y = h
     # internal layers in decoder
-    for i in range(n_stacks-1, 0, -1):
+    for i in range(n_stacks-1, 0, -1): # 每层的单元数和encoder是对称的
         y = Dense(dims[i], activation=act, kernel_initializer=init, name='decoder_%d' % i)(y)
 
     # output
@@ -56,7 +57,7 @@ def autoencoder(dims, act='relu', init='glorot_uniform'):
     return Model(inputs=x, outputs=y, name='AE'), Model(inputs=x, outputs=h, name='encoder')
 
 
-class ClusteringLayer(Layer):
+class ClusteringLayer(Layer): #把一个样本从一个向量表示变成一个各个类别的soft assignment表示; 注意，weights参数表示要被训练的参数也即初始的聚类中心？！ 本来output = f(inputs,weight) 也就是说这一层的输出就是由输入和聚类中心决定的
     """
     Clustering layer converts input sample (feature) to soft label, i.e. a vector that represents the probability of the
     sample belonging to each cluster. The probability is calculated with student's t-distribution.
@@ -82,13 +83,13 @@ class ClusteringLayer(Layer):
         self.n_clusters = n_clusters
         self.alpha = alpha
         self.initial_weights = weights
-        self.input_spec = InputSpec(ndim=2)
+        self.input_spec = InputSpec(ndim=2) #ndim: Integer, expected rank of the input. 该方法Specify input，相当于是对input做出一定的说明和限制？例如说ndim, dtype and shape of every input
 
-    def build(self, input_shape):
+    def build(self, input_shape): #这一层可被训练的参数是什么
         assert len(input_shape) == 2
         input_dim = input_shape[1]
         self.input_spec = InputSpec(dtype=K.floatx(), shape=(None, input_dim))
-        self.clusters = self.add_weight((self.n_clusters, input_dim), initializer='glorot_uniform', name='clusters')
+        self.clusters = self.add_weight((self.n_clusters, input_dim), initializer='glorot_uniform', name='clusters') #增加了一个叫'clusters'的参数（可被训练的），参数（矩阵）维数是(self.n_clusters, input_dim)
         if self.initial_weights is not None:
             self.set_weights(self.initial_weights)
             del self.initial_weights
@@ -127,12 +128,12 @@ class DEC(object):
         super(DEC, self).__init__()
 
         self.dims = dims
-        self.input_dim = dims[0]
-        self.n_stacks = len(self.dims) - 1
+        self.input_dim = dims[0] #每个样本的维数
+        self.n_stacks = len(self.dims) - 1 #编码器stack数？
 
         self.n_clusters = n_clusters
         self.alpha = alpha
-        self.autoencoder, self.encoder = autoencoder(self.dims, init=init)
+        self.autoencoder, self.encoder = autoencoder(self.dims, init=init) # encoder是autoencoder的前一半的编码器部分
 
         # prepare DEC model
         clustering_layer = ClusteringLayer(self.n_clusters, name='clustering')(self.encoder.output)
@@ -151,13 +152,13 @@ class DEC(object):
                     self.y = y
                     super(PrintACC, self).__init__()
 
-                def on_epoch_end(self, epoch, logs=None):
-                    if int(epochs/10) != 0 and epoch % int(epochs/10) != 0:
+                def on_epoch_end(self, epoch, logs=None): #called at the end of every epoch?
+                    if int(epochs/10) != 0 and epoch % int(epochs/10) != 0: # 只在epochs的10%的迭代次数之内运行以下的print 代码
                         return
                     feature_model = Model(self.model.input,
                                           self.model.get_layer(
                                               'encoder_%d' % (int(len(self.model.layers) / 2) - 1)).output)
-                    features = feature_model.predict(self.x)
+                    features = feature_model.predict(self.x) #pretrain训练的是自编码器部分，这里是encoder的输出，在embedding后的向量空间上进行KMEANS可以观察encoding的效果？
                     km = KMeans(n_clusters=len(np.unique(self.y)), n_init=20, n_jobs=4)
                     y_pred = km.fit_predict(features)
                     # print()
@@ -181,7 +182,7 @@ class DEC(object):
         return self.encoder.predict(x)
 
     def predict(self, x):  # predict cluster labels using the output of clustering layer
-        q = self.model.predict(x, verbose=0)
+        q = self.model.predict(x, verbose=0) #self.model是一个Model()返回值
         return q.argmax(1)
 
     @staticmethod
@@ -195,17 +196,17 @@ class DEC(object):
     def fit(self, x, y=None, maxiter=2e4, batch_size=256, tol=1e-3,
             update_interval=140, save_dir='./results/temp'):
 
-        print('Update interval', update_interval)
-        save_interval = int(x.shape[0] / batch_size) * 5  # 5 epochs
+        print('Update interval', update_interval) #??
+        save_interval = int(x.shape[0] / batch_size) * 5  # 5 epochs?
         print('Save interval', save_interval)
 
         # Step 1: initialize cluster centers using k-means
         t1 = time()
         print('Initializing cluster centers with k-means.')
         kmeans = KMeans(n_clusters=self.n_clusters, n_init=20)
-        y_pred = kmeans.fit_predict(self.encoder.predict(x))
-        y_pred_last = np.copy(y_pred)
-        self.model.get_layer(name='clustering').set_weights([kmeans.cluster_centers_])
+        y_pred = kmeans.fit_predict(self.encoder.predict(x)) #self.autoencoder已经pretrain了
+        y_pred_last = np.copy(y_pred) 
+        self.model.get_layer(name='clustering').set_weights([kmeans.cluster_centers_]) #把ClusteringLayer的参数设置为kemans训练结果中的cluster_centers,相当于是根据encoder的结果做了以下kmeans然后将聚类中心设置为初始权重
 
         # Step 2: deep clustering
         # logging file
@@ -217,9 +218,9 @@ class DEC(object):
         loss = 0
         index = 0
         index_array = np.arange(x.shape[0])
-        for ite in range(int(maxiter)):
+        for ite in range(int(maxiter)): #最大迭代次数
             if ite % update_interval == 0:
-                q = self.model.predict(x, verbose=0)
+                q = self.model.predict(x, verbose=0) #与self.predict()不同
                 p = self.target_distribution(q)  # update the auxiliary target distribution p
 
                 # evaluate the clustering performance
@@ -246,7 +247,7 @@ class DEC(object):
             # if index == 0:
             #     np.random.shuffle(index_array)
             idx = index_array[index * batch_size: min((index+1) * batch_size, x.shape[0])]
-            loss = self.model.train_on_batch(x=x[idx], y=p[idx])
+            loss = self.model.train_on_batch(x=x[idx], y=p[idx])  ## 目标和clusteringlayer的输出，损失定义散度
             index = index + 1 if (index + 1) * batch_size <= x.shape[0] else 0
 
             # save intermediate model
@@ -271,7 +272,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='train',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--dataset', default='mnist',
-                        choices=['mnist', 'fmnist', 'usps', 'reuters10k', 'stl'])
+                        choices=['mnist', 'fmnist', 'usps', 'reuters10k', 'stl','jd'])
     parser.add_argument('--batch_size', default=256, type=int)
     parser.add_argument('--maxiter', default=2e4, type=int)
     parser.add_argument('--pretrain_epochs', default=None, type=int)
@@ -290,7 +291,7 @@ if __name__ == "__main__":
     x, y = load_data(args.dataset)
     n_clusters = len(np.unique(y))
 
-    init = 'glorot_uniform'
+    init = 'glorot_uniform' #初始化器的选择
     pretrain_optimizer = 'adam'
     # setting parameters
     if args.dataset == 'mnist' or args.dataset == 'fmnist':
@@ -300,6 +301,12 @@ if __name__ == "__main__":
                                distribution='uniform')  # [-limit, limit], limit=sqrt(1./fan_in)
         pretrain_optimizer = SGD(lr=1, momentum=0.9)
     elif args.dataset == 'reuters10k':
+        update_interval = 30
+        pretrain_epochs = 50
+        init = VarianceScaling(scale=1. / 3., mode='fan_in',
+                               distribution='uniform')  # [-limit, limit], limit=sqrt(1./fan_in)
+        pretrain_optimizer = SGD(lr=1, momentum=0.9)
+    elif args.dataset == 'jd':
         update_interval = 30
         pretrain_epochs = 50
         init = VarianceScaling(scale=1. / 3., mode='fan_in',
@@ -318,7 +325,7 @@ if __name__ == "__main__":
         pretrain_epochs = args.pretrain_epochs
 
     # prepare the DEC model
-    dec = DEC(dims=[x.shape[-1], 500, 500, 2000, 10], n_clusters=n_clusters, init=init)
+    dec = DEC(dims=[x.shape[-1], 500, 500, 2000, 10], n_clusters=n_clusters, init=init) #dims参数规定了stacked autoencoder的结构
 
     if args.ae_weights is None:
         dec.pretrain(x=x, y=y, optimizer=pretrain_optimizer,

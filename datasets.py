@@ -39,8 +39,8 @@ def make_reuters_data(data_dir):
                 did_to_cat[did] = did_to_cat.get(did, []) + [cat]
         # did_to_cat = {k: did_to_cat[k] for k in list(did_to_cat.keys()) if len(did_to_cat[k]) > 1}
         for did in list(did_to_cat.keys()):
-            if len(did_to_cat[did]) > 1:
-                del did_to_cat[did]
+            if len(did_to_cat[did]) > 1: #删除被分到多个类别下的新闻
+                del did_to_cat[did] 
 
     dat_list = ['lyrl2004_tokens_test_pt0.dat',
                 'lyrl2004_tokens_test_pt1.dat',
@@ -179,13 +179,19 @@ def load_reuters(data_path='./data/reuters'):
         print('making reuters idf features')
         make_reuters_data(data_path)
         print(('reutersidf saved to ' + data_path))
-    data = np.load(os.path.join(data_path, 'reutersidf10k.npy')).item()
+    data = np.load(os.path.join(data_path, 'reutersidf10k.npy')).item() #npy文件——Numpy专用的二进制格式；npz文件——压缩文件
     # has been shuffled
     x = data['data']
     y = data['label']
-    x = x.reshape((x.shape[0], -1)).astype('float64')
-    y = y.reshape((y.size,))
+    x = x.reshape((x.shape[0], -1)).astype('float64') #reshape 将行数变为x.shape[0]，列数自动推算
+    y = y.reshape((y.size,)) #python定义元组时，要在第一个元素后写逗号，不然（5）会认为是一个数字；这里是把y变成一个一行向量
     print(('REUTERSIDF10K samples', x.shape))
+    return x, y
+
+def load_jd(path='jd_Data/extract_comments4.txt', binary = True, threeClassed = False):
+    from jdDataProcessing import load_jdData
+    x,y = load_jdData(path, binary = binary, threeClassed = threeClassed)
+    print ("Finish loading JD review data")
     return x, y
 
 
@@ -322,6 +328,12 @@ def load_data(dataset_name):
         return load_reuters()
     elif dataset_name == 'stl':
         return load_stl()
+    elif dataset_name == 'jd':
+        return load_jd()
     else:
         print('Not defined for loading', dataset_name)
         exit(0)
+
+
+if __name__ == "__main__":
+    pass
