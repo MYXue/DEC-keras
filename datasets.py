@@ -188,12 +188,17 @@ def load_reuters(data_path='./data/reuters'):
     print(('REUTERSIDF10K samples', x.shape))
     return x, y
 
-def load_jd(path='jd_Data/extract_comments4.txt', binary = True, threeClassed = False):
+def load_jd(path='jd_Data/extract_comments4.txt', binary = False, threeClassed = True):
     from jdDataProcessing import load_jdData
     x,y = load_jdData(path, binary = binary, threeClassed = threeClassed)
     print ("Finish loading JD review data")
     return x, y
 
+def load_jdReviewWithLabel(path='jd_Data/negatives_withlabel.txt'):
+    from jdDataProcessing import load_jdReviewWithLabel
+    x,y = load_jdReviewWithLabel(path)
+    print ("Finish loading JD review data with label")
+    return x, y
 
 def load_retures_keras():
     from keras.preprocessing.text import Tokenizer
@@ -330,6 +335,8 @@ def load_data(dataset_name):
         return load_stl()
     elif dataset_name == 'jd':
         return load_jd()
+    elif dataset_name == 'jdReviewWithLabel':
+        return load_jdReviewWithLabel()
     else:
         print('Not defined for loading', dataset_name)
         exit(0)

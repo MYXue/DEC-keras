@@ -272,7 +272,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='train',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--dataset', default='mnist',
-                        choices=['mnist', 'fmnist', 'usps', 'reuters10k', 'stl','jd'])
+                        choices=['mnist', 'fmnist', 'usps', 'reuters10k', 'stl','jd','jdReviewWithLabel'])
     parser.add_argument('--batch_size', default=256, type=int)
     parser.add_argument('--maxiter', default=2e4, type=int)
     parser.add_argument('--pretrain_epochs', default=None, type=int)
@@ -307,6 +307,12 @@ if __name__ == "__main__":
                                distribution='uniform')  # [-limit, limit], limit=sqrt(1./fan_in)
         pretrain_optimizer = SGD(lr=1, momentum=0.9)
     elif args.dataset == 'jd':
+        update_interval = 30
+        pretrain_epochs = 50
+        init = VarianceScaling(scale=1. / 3., mode='fan_in',
+                               distribution='uniform')  # [-limit, limit], limit=sqrt(1./fan_in)
+        pretrain_optimizer = SGD(lr=1, momentum=0.9)
+    elif args.dataset == 'jdReviewWithLabel':
         update_interval = 30
         pretrain_epochs = 50
         init = VarianceScaling(scale=1. / 3., mode='fan_in',

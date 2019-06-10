@@ -33,8 +33,7 @@ def splitSentence(text): #中文分句分词，每句变成一个字符串,句�
     splitedSentence = ' '.join(words)
     return splitedSentence
 
-def loadSplitRawData(path='jd_Data/extract_comments4.txt', binary = False, threeClassed = True):
-    print('loading JD reviews...')
+def loadSplitRawData(path='jd_Data/extract_comments4.txt', binary = None, threeClassed = None):
     columns = ['text','stars']
     df = pd.read_csv(path,header=None,sep='\t',names=columns) 
     df.dropna(axis=0, how='any', inplace=True) #删除有空值的行
@@ -59,6 +58,7 @@ def loadSplitRawData(path='jd_Data/extract_comments4.txt', binary = False, three
         return df_new
 
 def load_jdData(path='jd_Data/extract_comments4.txt', binary = False, threeClassed = True):
+    print('loading JD reviews...')
     if binary == True:
         tfidfFile = 'jdReview_TOP2000tfidf'+'2class'+'.npy'
     if threeClassed == True:
@@ -92,10 +92,56 @@ def load_jdData(path='jd_Data/extract_comments4.txt', binary = False, threeClass
     x = np.asarray(x.todense()) * np.sqrt(x.shape[1])  # 保证一行的平方和除以D等于1？ D = x.shape[1]
     print('todense succeed')
 
-    p = np.random.permutation(x.shape[0]) #打乱 Randomly permute a sequence, or return a permuted range.
-    x = x[p]
-    y = y[p]
-    print('permutation finished')
+    # p = np.random.permutation(x.shape[0]) #打乱 Randomly permute a sequence, or return a permuted range.
+    # x = x[p]
+    # y = y[p]
+    # print('permutation finished')
+
+    assert x.shape[0] == y.shape[0]
+    x = x.reshape((x.shape[0], -1))
+
+    print (x.shape,y.shape)
+    
+    np.save(os.path.join(data_dir, tfidfFile), {'data': x, 'label': y}) #Save an array to a binary file in NumPy .npy format.
+    return x,y
+
+
+def load_jdReviewWithLabel(path='jd_Data/extract_comments4.txt'):
+    print('loading JD reviews with label...')
+    tfidfFile = 'jdReviewWithLabel_TOP2000tfidf'+'.npy'
+    data_dir = 'jd_Data/'
+
+    import os
+    if os.path.exists(os.path.join(data_dir, tfidfFile)):
+        data = np.load(os.path.join(data_dir, tfidfFile)).item()
+        x = data['data']
+        y = data['label']
+        return x,y
+ 
+    df = loadSplitRawData(path)
+
+    data = np.array(df["data"])
+    target = np.array(df["label"])
+
+    from sklearn.feature_extraction.text import CountVectorizer
+    # Convert a collection of text documents to a matrix of token counts
+    # CountVectorizer会将文本中的词语转换为词频矩阵，它通过fit_transform函数计算各个词语出现的次数
+    # 对所有关键词的term frequency进行降序排序，只取前max_features个作为关键词集
+    x = CountVectorizer(dtype=np.float64, max_features=2000).fit_transform(data)
+    y = np.asarray(target)
+
+    from sklearn.feature_extraction.text import TfidfTransformer
+    # Transform a count matrix to a normalized tf or tf-idf representation
+    x = TfidfTransformer(norm='l2', sublinear_tf=True).fit_transform(x) # 返回值类型'scipy.sparse.csr.csr_matrix'，下面的todense会将其变为矩阵
+    x = x[:].astype(np.float32)
+    print(x.dtype, x.size)
+    x = np.asarray(x.todense()) * np.sqrt(x.shape[1])  # 保证一行的平方和除以D等于1？ D = x.shape[1]
+    print('todense succeed')
+
+    # p = np.random.permutation(x.shape[0]) #打乱 Randomly permute a sequence, or return a permuted range.
+    # x = x[p]
+    # y = y[p]
+    # print('permutation finished')
 
     assert x.shape[0] == y.shape[0]
     x = x.reshape((x.shape[0], -1))
